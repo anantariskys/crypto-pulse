@@ -1,23 +1,16 @@
-import {
-  View,
-  Text,
-  ScrollView,
-  Image,
-  Pressable,
-} from "react-native";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { MaterialIcons } from "@expo/vector-icons";
 import { useCoin } from "@/hooks/use-coin";
-import Svg, { Path } from "react-native-svg";
+import { useMarketChart } from "@/hooks/use-market-chart";
+import { useOHLC } from "@/hooks/use-ohlc";
+import { MaterialIcons } from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
+import { Image, Pressable, ScrollView, Text, View } from "react-native";
+import Svg, { Path } from "react-native-svg";
+import ScreenWrapper from "@/components/ui/screen-wrapper";
 
 /* ================= SVG HELPER ================= */
 
-function generatePath(
-  data: number[],
-  width = 320,
-  height = 160
-) {
+function generatePath(data: number[], width = 320, height = 160) {
   if (!data || data.length === 0) return "";
 
   const min = Math.min(...data);
@@ -33,20 +26,53 @@ function generatePath(
     .join(" ");
 }
 
-/* ================= SCREEN ================= */
+/* ================= COMPONENT ================= */
+const StatCard = ({ label, value }: { label: string; value: string }) => (
+  <View className="bg-surface p-3 rounded-xl border border-white/5 flex-1 min-w-[45%]">
+    <Text className="text-muted text-xs font-bold mb-1">{label}</Text>
+    <Text className="text-white font-semibold text-sm">{value}</Text>
+  </View>
+);
 
 export default function CoinDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { data, isLoading } = useCoin(id);
-  const [timeframe, setTimeframe] =
-    useState<"1D" | "7D" | "1M">("7D");
+  const { data, isLoading, isError } = useCoin(id);
+  const [timeframe, setTimeframe] = useState<"1D" | "7D" | "30D" | "1Y">("7D");
+  const chart = useMarketChart(
+    id,
+    timeframe === "1D"
+      ? "1"
+      : timeframe === "7D"
+        ? "7"
+        : timeframe === "30D"
+          ? "30"
+          : "365",
+  );
+  
+  // ohlc is not used in UI currently but we keep it if needed later or remove.
+  // The previous file had OHLC section but it was hidden/commented out or just separate.
+  // I will skip OHLC for now to keep it clean as per "Stats Grid" requirement, unless user wants it.
+  // Actually, previous file had OHLC section. I'll keep it if it fits, but the user asked for "Market stats grid".
+  // I replaced OHLC with Market Stats Grid effectively. I'll stick to that.
+
+  const chartData = useMemo(() => {
+    const prices = chart.data?.prices?.map((p) => p[1]) ?? [];
+    return prices;
+  }, [chart.data]);
 
   if (isLoading || !data) {
     return (
-      <View className="flex-1 bg-bg items-center justify-center">
+      <ScreenWrapper className="items-center justify-center">
         <Text className="text-muted">Loading...</Text>
-      </View>
+      </ScreenWrapper>
+    );
+  }
+  if (isError) {
+    return (
+      <ScreenWrapper className="items-center justify-center">
+        <Text className="text-danger">Failed to load coin</Text>
+      </ScreenWrapper>
     );
   }
 
@@ -54,28 +80,15 @@ export default function CoinDetailScreen() {
   const change = data.market_data.price_change_percentage_24h;
   const up = change >= 0;
 
-  /* ================= CHART DATA ================= */
-
-  const chartData = useMemo(() => {
-    const prices = data.market_data.sparkline_7d?.price ?? [];
-    if (timeframe === "1D") return prices.slice(-24);
-    if (timeframe === "1M") return prices.slice(-30 * 24);
-    return prices;
-  }, [timeframe, data]);
-
   return (
-    <View className="flex-1 bg-bg">
+    <ScreenWrapper>
       {/* ================= NAVBAR ================= */}
       <View className="flex-row items-center justify-between px-4 py-3 border-b border-white/5">
         <Pressable
           onPress={() => router.back()}
-          className="w-10 h-10 rounded-full items-center justify-center"
+          className="w-10 h-10 rounded-full items-center justify-center bg-white/5"
         >
-          <MaterialIcons
-            name="arrow-back-ios-new"
-            size={18}
-            color="white"
-          />
+          <MaterialIcons name="arrow-back-ios-new" size={18} color="white" />
         </Pressable>
 
         <View className="items-center">
@@ -95,10 +108,7 @@ export default function CoinDetailScreen() {
         <View className="px-6 pt-6">
           <View className="flex-row items-center gap-4 mb-6">
             <View className="relative w-16 h-16 rounded-full bg-primary items-center justify-center">
-              <Image
-                source={{ uri: data.image.large }}
-                className="w-10 h-10"
-              />
+              <Image source={{ uri: data.image.large }} className="w-10 h-10" />
               <View className="absolute -bottom-1 -right-1 w-6 h-6 bg-primary rounded-full items-center justify-center border border-bg">
                 <MaterialIcons name="bolt" size={14} color="white" />
               </View>
@@ -152,7 +162,7 @@ export default function CoinDetailScreen() {
         {/* ================= TIMEFRAME ================= */}
         <View className="px-4 mb-4">
           <View className="flex-row bg-white/5 rounded-xl p-1">
-            {(["1D", "7D", "1M"] as const).map((t) => (
+            {(["1D", "7D", "30D", "1Y"] as const).map((t) => (
               <Pressable
                 key={t}
                 onPress={() => setTimeframe(t)}
@@ -162,9 +172,7 @@ export default function CoinDetailScreen() {
               >
                 <Text
                   className={`text-sm font-semibold ${
-                    timeframe === t
-                      ? "text-primary"
-                      : "text-muted"
+                    timeframe === t ? "text-primary" : "text-muted"
                   }`}
                 >
                   {t}
@@ -190,28 +198,15 @@ export default function CoinDetailScreen() {
 
         {/* ================= MARKET STATS ================= */}
         <View className="px-4 mb-6">
-          <Text className="text-muted text-xs font-bold mb-3 tracking-widest">
-            MARKET STATS
+          <Text className="text-muted text-xs font-bold mb-3 tracking-widest uppercase">
+            Market Stats
           </Text>
 
-          <View className="flex-row gap-4">
-            <View className="flex-1 bg-white/5 rounded-2xl p-4">
-              <Text className="text-muted text-xs mb-1">
-                Market Cap
-              </Text>
-              <Text className="text-white text-xl font-bold">
-                ${(data.market_data.market_cap.usd / 1e12).toFixed(2)}T
-              </Text>
-            </View>
-
-            <View className="flex-1 bg-white/5 rounded-2xl p-4">
-              <Text className="text-muted text-xs mb-1">
-                24h Volume
-              </Text>
-              <Text className="text-white text-xl font-bold">
-                ${(data.market_data.total_volume.usd / 1e9).toFixed(2)}B
-              </Text>
-            </View>
+          <View className="flex-row flex-wrap gap-3">
+             <StatCard label="Market Cap" value={`$${(data.market_data.market_cap.usd / 1e9).toFixed(2)}B`} />
+             <StatCard label="Volume (24h)" value={`$${(data.market_data.total_volume.usd / 1e9).toFixed(2)}B`} />
+             <StatCard label="Low (24h)" value={`$${(data.market_data.low_24h?.usd ?? 0 / 1e6).toFixed(2)}M ${data.symbol.toUpperCase()}`} />
+             <StatCard label="All Time High" value={`$${data.market_data.high_24h?.usd?.toLocaleString() || "N/A"} (${data.market_data.price_change_percentage_24h?.toFixed(2) || "N/A"}%)`} />
           </View>
         </View>
 
@@ -219,19 +214,14 @@ export default function CoinDetailScreen() {
         <View className="px-4 mb-6">
           <View className="bg-primary/10 border border-primary/20 rounded-2xl p-5">
             <View className="flex-row items-center gap-2 mb-2">
-              <MaterialIcons
-                name="auto-awesome"
-                size={18}
-                color="#135bec"
-              />
+              <MaterialIcons name="auto-awesome" size={18} color="#135bec" />
               <Text className="text-primary font-bold">
                 CryptoPulse AI Insight
               </Text>
             </View>
 
             <Text className="text-muted leading-relaxed">
-              {data.name} shows strong bullish momentum. Support is forming
-              near{" "}
+              {data.name} shows strong bullish momentum. Support is forming near{" "}
               <Text className="text-white font-bold">
                 ${price.toLocaleString()}
               </Text>
@@ -241,6 +231,6 @@ export default function CoinDetailScreen() {
           </View>
         </View>
       </ScrollView>
-    </View>
+    </ScreenWrapper>
   );
 }

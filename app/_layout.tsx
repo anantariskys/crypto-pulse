@@ -8,15 +8,11 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 export default function RootLayout() {
   return (
-    <SafeAreaView className="flex-1 bg-bg">
-
     <Providers>
       <View className="flex-1 bg-bg">
         <StatusBar style="light" />
         <Stack screenOptions={{ headerShown: false }} />
-        
       </View>
     </Providers>
-    </SafeAreaView>
   );
 }
