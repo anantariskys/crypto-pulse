@@ -1,8 +1,10 @@
-import { getMarket } from "@/services/coingecko";
+import { getMarkets } from "@/services/coingecko.service";
 import { useQuery } from "@tanstack/react-query";
+import type { MarketCoin } from "@/types/coingecko";
 
 export const useMarket = () =>
-  useQuery({
-    queryKey: ["market"],
-    queryFn: getMarket,
+  useQuery<MarketCoin[]>({
+    queryKey: ["market", { per_page: 8 }],
+    queryFn: () => getMarkets({ per_page: 8 }),
+    staleTime: 60_000,
   });

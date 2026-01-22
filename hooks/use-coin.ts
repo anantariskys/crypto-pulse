@@ -1,10 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
-import { getCoin } from "@/services/coingecko";
+import { getCoinDetail } from "@/services/coingecko.service";
+import type { CoinDetail } from "@/types/coingecko";
 
 
 
 export const useCoin = (id: string) =>
-  useQuery({
+  useQuery<CoinDetail>({
     queryKey: ["coin", id],
-    queryFn: () => getCoin(id),
+    queryFn: () => getCoinDetail(id),
+    enabled: !!id,
+    staleTime: 60_000,
   });
